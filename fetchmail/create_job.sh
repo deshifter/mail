@@ -1,83 +1,134 @@
 #!/usr/bin/env bash
 
-# default config
-log_path="/var/log/fetchmail"
+# maildir path
+maildir_path="/home/mail"
+
+if [ ! -d "${maildir_path}" ]; then
+    echo "cannot open ${maildir_path}: Directory nonexistent"
+    exit
+fi
+
+# log links path
+log_links_path="${maildir_path}/.logs"
+
 # local mail server
-int_hostname="domain.local"
+my_domain=$(hostname -d)
+
 # external mail server
-ext_poll="imap.example.com"
+ext_poll="mail.termoxid.com"
 ext_port=143
 ext_proto="imap"
+#
+use_ssl=no
+keep_on_server=no
+fetch_limit_count=5
 
-
-int_username=
+target_username=
 ext_user=
 ext_password=
+
+force_overwrite=false
 
 while [ -n "$1" ]
 do
     case "$1" in
+        -F | --force) force_overwrite=true
+        shift ;;
         -f | --from) ext_user="$2"
         shift ;;
         -p | --password) ext_password="$2"
         shift ;;
-        -t | --to) int_username="$2"
+        -t | --to) target_username="$2"
         shift ;;
         *) ;;
     esac
     shift
 done
 
-if [ -z "$ext_user" ] || [ -z "$ext_password" ] || [ -z "$int_username" ]; then
+if [ -z "${ext_user}" ] || [ -z "${ext_password}" ] || [ -z "${target_username}" ]; then
     echo "Too few arguments. Use: ./install.sh -f USER -p PASSWORD -t USERNAME"
     exit
 fi
 
-maildir_path="/home/mail/$int_hostname/$int_username@$int_hostname"
+mailbox_path="${maildir_path}/${my_domain}/${target_username}@${my_domain}"
 
-if [ ! -e "$maildir_path" ]; then
-    echo "cannot open $maildir_path: Directory nonexistent"
+if [ ! -d "${mailbox_path}" ]; then
+    echo "cannot open ${mailbox_path}: Directory nonexistent"
     exit
 fi
 
-log_path_full="$log_path/$int_hostname/$int_username@$int_hostname.log"
-
-invisiblity=yes
-bouncemail=no
-use_ssl=yes
-keep_on_server=yes
-
-if [ $invisiblity = yes ] || [ $invisiblity = true ]; then
-    invisible="set invisible"
-fi
-
-if [ $bouncemail = no ] || [ $bouncemail = false ]; then
-    no_bouncemail="set no bouncemail"
-fi
-
 if [ $use_ssl = yes ] || [ $use_ssl = true ]; then
-    ssl="ssl"
+    ssl_config="ssl"
+fi
+
+if [ $use_ssl = no ] || [ $use_ssl = false ]; then
+    ssl_config="sslproto ''"
 fi
 
 if [ $keep_on_server = yes ] || [ $keep_on_server = true ]; then
     keep="keep"
 fi
 
-fetchmail_conf=$maildir_path/fetchmail.conf
+if [ $keep_on_server = no ] || [ $keep_on_server = false ]; then
+    keep="no keep"
+fi
 
-cat > "$fetchmail_conf" << EOF
-set logfile "${log_path_full}"
-${invisible}
-${no_bouncemail}
-poll ${ext_poll}
-port ${ext_port}
+
+fetchmail_conf_path="${mailbox_path}/fetchmail.conf"
+fetchmail_log_path="${mailbox_path}/fetchmail.log"
+
+procmail_conf_path="${mailbox_path}/procmail.conf"
+procmail_log_path="${mailbox_path}/procmail.log"
+
+if [ -d "${fetchmail_log_path}" ]; then
+    if [ $force_overwrite != yes ] && [ $force_overwrite != true ]; then
+        echo "fetchmail.conf already exists, you --force to overwrite"
+        exit
+    fi
+fi
+
+cat > "$fetchmail_conf_path" << EOF
+set logfile ${fetchmail_log_path}
+set invisible
+set no bouncemail
+poll $ext_poll
+port $ext_port
+auth any
 proto $ext_proto
-user "${ext_user}"
-password "${ext_password}"
-${ssl}
-${keep}
-mda "/usr/bin/procmail -m ${maildir_path}/procmail.conf"
+user "$ext_user"
+password $ext_password
+$ssl_config
+$keep
+fetchlimit $fetch_limit_count
+mda "/usr/bin/procmail -m ${procmail_conf_path}"
 EOF
 
-chown vmail:vmail "$fetchmail_conf"
-chmod 700 "$fetchmail_conf"
+chmod 600 "${fetchmail_conf_path}"
+chmod 600 "${procmail_conf_path}"
+
+touch "${fetchmail_log_path}"
+
+procmail_maildir_path="${mailbox_path}/"
+procmail_default_path="${mailbox_path}/"
+
+cat > "${procmail_conf_path}" << EOF
+MAILDIR="${procmail_maildir_path}/"
+DEFAULT="${procmail_default_path}/"
+LOGFILE="${procmail_conf_path}"
+VERBOSE=on
+
+:0
+EOF
+
+if [ ! -d "${log_links_path}" ]; then
+    md -p "${log_links_path}"
+
+    if [ ! -e "${log_links_path}/fetchmail-${my_domain}-${target_username}.log" ]; then
+        ln -s "${fetchmail_log_path}" "${log_links_path}/fetchmail-${my_domain}-${target_username}.log"
+    fi
+
+    procmail_log_links_path="${log_links_path}/procmail-${my_domain}-${target_username}.log"
+    if [ ! -e "${procmail_log_links_path}" ]; then
+        ln -s "${procmail_log_path}" "${procmail_log_links_path}"
+    fi    
+fi
