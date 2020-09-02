@@ -4,13 +4,27 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-touch /tmp/mail/fetchmail_create_job.lock
+
+if [ "$EUID" -ne 0 ]; then
+    echo "Please run as root"
+    exit
+fi
+
+
+if [ ! -d "/tmp/mail" ]; then
+    md -p /tmp/mail
+elif [ ! -e "/tmp/mail/fetchmail_create_job.lock" ]; then
+    touch /tmp/mail/fetchmail_create_job.lock
+else
+    echo "Process if locked"
+    exit
+fi
 
 # maildir path
 maildir_path="/home/mail"
 
 if [ ! -d "${maildir_path}" ]; then
-    echo "cannot open ${maildir_path}: Directory nonexistent"
+    echo "Can\'t open ${maildir_path}: Directory nonexistent"
     exit
 fi
 
@@ -22,31 +36,39 @@ my_domain=$(hostname -d)
 
 # external mail server
 ext_hostname="mail.termoxid.com"
+ext_use_ssl=no
 ext_port=143
 ext_proto="imap"
-#
-use_ssl=no
-keep_on_server=no
-fetch_limit_count=5
-
-target_username=
 ext_user=
 ext_password=
 
+# keep messages on external server
+keep_on_server=no
+# max count mails for one connection
+fetch_limit_count=5
+
+# overwrite existed config files
 force_overwrite=false
 
-while [ -n "$1" ]
-do
+while [ -n "$1" ]; do
     case "$1" in
-        -F | --force) force_overwrite=true
-        shift ;;
-        -f | --from) ext_user="$2"
-        shift ;;
-        -p | --password) ext_password="$2"
-        shift ;;
-        -t | --to) target_username="$2"
-        shift ;;
-        *) ;;
+    -F | --force)
+        force_overwrite=true
+        shift
+        ;;
+    -f | --from)
+        ext_user="$2"
+        shift
+        ;;
+    -p | --password)
+        ext_password="$2"
+        shift
+        ;;
+    -t | --to)
+        target_username="$2"
+        shift
+        ;;
+    *) ;;
     esac
     shift
 done
@@ -63,11 +85,11 @@ if [ ! -d "${mailbox_path}" ]; then
     exit
 fi
 
-if [ $use_ssl = yes ] || [ $use_ssl = true ]; then
+if [ $ext_use_ssl = yes ] || [ $ext_use_ssl = true ]; then
     ssl_config="ssl"
 fi
 
-if [ $use_ssl = no ] || [ $use_ssl = false ]; then
+if [ $ext_use_ssl = no ] || [ $ext_use_ssl = false ]; then
     ssl_config="sslproto ''"
 fi
 
@@ -79,37 +101,50 @@ if [ $keep_on_server = no ] || [ $keep_on_server = false ]; then
     keep="no keep"
 fi
 
-
 fetchmail_conf_path="${mailbox_path}/fetchmail.conf"
 fetchmail_log_path="${mailbox_path}/fetchmail.log"
 
-procmail_conf_path="${mailbox_path}/procmail.conf"
-procmail_log_path="${mailbox_path}/procmail.log"
-
-if [ -d "${fetchmail_log_path}" ]; then
-    if [ $force_overwrite != yes ] && [ $force_overwrite != true ]; then
+if [ -e "${fetchmail_conf_path}" ]; then
+    if [ ${force_overwrite} == yes ] || [ ${force_overwrite} == true ]; then
+        cat /dev/null >"${fetchmail_conf_path}"
+    else
         echo "fetchmail.conf already exists, you --force to overwrite"
         exit
     fi
 fi
 
-cat > "$fetchmail_conf_path" << EOF
-set logfile ${fetchmail_log_path}
+chown vmail:vmail "${fetchmail_conf_path}"
+chmod 600 "${fetchmail_conf_path}"
+
+cat >"${fetchmail_conf_path}" <<EOF
+set logfile "${fetchmail_log_path}"
 set invisible
 set no bouncemail
-poll $ext_hostname
-port $ext_port
+poll ${ext_hostname}
+port ${ext_port}
 auth any
-proto $ext_proto
-user "$ext_user"
-password $ext_password
-$ssl_config
-$keep
-fetchlimit $fetch_limit_count
+proto ${ext_proto}
+user "${ext_user}"
+password ${ext_password}
+${ssl_config}
+${keep}
+fetchlimit ${fetch_limit_count}
 mda "/usr/bin/procmail -m ${procmail_conf_path}"
 EOF
 
-chmod 600 "${fetchmail_conf_path}"
+procmail_conf_path="${mailbox_path}/procmail.conf"
+procmail_log_path="${mailbox_path}/procmail.log"
+
+if [ -e "${procmail_conf_path}" ]; then
+    if [ ${force_overwrite} == yes ] || [ ${force_overwrite} == true ]; then
+        cat /dev/null >"${procmail_conf_path}"
+    else
+        echo "fetchmail.conf already exists, you --force to overwrite"
+        exit
+    fi
+fi
+
+chown vmail:vmail "${procmail_conf_path}"
 chmod 600 "${procmail_conf_path}"
 
 if [ -e "${fetchmail_log_path}" ]; then
@@ -123,7 +158,7 @@ fi
 procmail_maildir_path="${mailbox_path}"
 procmail_default_path="${mailbox_path}"
 
-cat > "${procmail_conf_path}" << EOF
+cat >"${procmail_conf_path}" <<EOF
 MAILDIR="${procmail_maildir_path}/"
 DEFAULT="${procmail_default_path}/"
 LOGFILE="${procmail_log_path}"
