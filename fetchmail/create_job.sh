@@ -9,7 +9,7 @@ if [ ! -d "${maildir_path}" ]; then
 fi
 
 # log links path
-log_links_path="${maildir_path}/.logs"
+log_links_path="/var/log"
 
 # local mail server
 my_domain=$(hostname -d)
@@ -106,29 +106,42 @@ EOF
 chmod 600 "${fetchmail_conf_path}"
 chmod 600 "${procmail_conf_path}"
 
-touch "${fetchmail_log_path}"
+if [ -e "${fetchmail_log_path}" ]; then
+    touch "${fetchmail_log_path}"
+fi
 
-procmail_maildir_path="${mailbox_path}/"
-procmail_default_path="${mailbox_path}/"
+if [ -e "${procmail_log_path}" ]; then
+    touch "${procmail_log_path}"
+fi
+
+procmail_maildir_path="${mailbox_path}"
+procmail_default_path="${mailbox_path}"
 
 cat > "${procmail_conf_path}" << EOF
 MAILDIR="${procmail_maildir_path}/"
 DEFAULT="${procmail_default_path}/"
-LOGFILE="${procmail_conf_path}"
+LOGFILE="${procmail_log_path}"
 VERBOSE=on
 
 :0
 EOF
 
+fetchmail_log_links_path="${log_links_path}/fetchmail"
+if [ ! -d "${fetchmail_log_links_path}" ]; then
+    md -p "${fetchmail_log_links_path}"
+fi
+
+fetchmail_log_links_path="${fetchmail_log_links_path}/${my_domain}-${target_username}.log"
+if [ ! -e "${fetchmail_log_links_path}" ]; then
+    ln -s "${fetchmail_log_path}" "${fetchmail_log_links_path}"
+fi
+
+procmail_log_links_path="${log_links_path}/procmail"
 if [ ! -d "${log_links_path}" ]; then
     md -p "${log_links_path}"
+fi
 
-    if [ ! -e "${log_links_path}/fetchmail-${my_domain}-${target_username}.log" ]; then
-        ln -s "${fetchmail_log_path}" "${log_links_path}/fetchmail-${my_domain}-${target_username}.log"
-    fi
-
-    procmail_log_links_path="${log_links_path}/procmail-${my_domain}-${target_username}.log"
-    if [ ! -e "${procmail_log_links_path}" ]; then
-        ln -s "${procmail_log_path}" "${procmail_log_links_path}"
-    fi    
+procmail_log_links_path="${fetchmail_log_links_path}/${my_domain}-${target_username}.log"
+if [ ! -e "${procmail_log_links_path}" ]; then
+    ln -s "${procmail_log_path}" "${procmail_log_links_path}"
 fi
