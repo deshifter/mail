@@ -9,7 +9,7 @@ if [ ! -d "${maildir_path}" ]; then
 fi
 
 # log links path
-log_links_path="/var/log"
+log_links_path="${maildir_path}/.logs"
 
 # local mail server
 my_domain=$(hostname -d)
@@ -141,7 +141,7 @@ if [ ! -d "${log_links_path}" ]; then
     md -p "${log_links_path}"
 fi
 
-procmail_log_links_path="${fetchmail_log_links_path}/${my_domain}-${target_username}.log"
+procmail_log_links_path="${procmail_log_links_path}/${my_domain}-${target_username}.log"
 if [ ! -e "${procmail_log_links_path}" ]; then
     ln -s "${procmail_log_path}" "${procmail_log_links_path}"
 fi
