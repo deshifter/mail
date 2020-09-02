@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+set -o errexit
+set -o nounset
+set -o pipefailw
+
+touch /tmp/mail/fetchmail_create_job.lock
+
 # maildir path
 maildir_path="/home/mail"
 
@@ -15,7 +21,7 @@ log_links_path="${maildir_path}/.logs"
 my_domain=$(hostname -d)
 
 # external mail server
-ext_poll="mail.termoxid.com"
+ext_hostname="mail.termoxid.com"
 ext_port=143
 ext_proto="imap"
 #
@@ -91,7 +97,7 @@ cat > "$fetchmail_conf_path" << EOF
 set logfile ${fetchmail_log_path}
 set invisible
 set no bouncemail
-poll $ext_poll
+poll $ext_hostname
 port $ext_port
 auth any
 proto $ext_proto
