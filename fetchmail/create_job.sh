@@ -2,7 +2,7 @@
 
 set -o errexit
 set -o nounset
-set -o pipefailw
+set -o pipefail
 
 touch /tmp/mail/fetchmail_create_job.lock
 
