@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -xe
+set -e
 
 function unlock_and_exit() {
     rm -f /tmp/mail/fetchmail_create_job.lock && exit
@@ -68,8 +68,8 @@ while [ -n "$1" ]; do
         shift
         ;;
     -t | --to)
-        target_username="$2"
-        echo "target_username\"$2\""
+        local_username="$2"
+        echo "local_username\"$2\""
         shift
         ;;
     *) ;;
@@ -77,12 +77,12 @@ while [ -n "$1" ]; do
     shift
 done
 
-if [ -z "${ext_user}" ] || [ -z "${ext_password}" ] || [ -z "${target_username}" ]; then
+if [ -z "${ext_user}" ] || [ -z "${ext_password}" ] || [ -z "${local_username}" ]; then
     echo "Too few arguments. Use: ./install.sh -f USER -p PASSWORD -t USERNAME"
     unlock_and_exit
 fi
 
-mailbox_path="${maildir_path}/${my_domain}/${target_username}@${my_domain}"
+mailbox_path="${maildir_path}/${my_domain}/${local_username}@${my_domain}"
 
 if [ ! -d "${mailbox_path}" ]; then
     echo "cannot open ${mailbox_path}: Directory nonexistent"
@@ -108,8 +108,8 @@ fi
 procmail_maildir_path="${mailbox_path}"
 procmail_default_path="${mailbox_path}"
 
-fetchmail_conf_path="${mailbox_path}/fetchmail-${ext_hostname}-${ext_user}.conf"
-procmail_conf_path="${mailbox_path}/procmail-${ext_hostname}-${ext_user}.conf"
+fetchmail_conf_path="${mailbox_path}/fetchmail-${ext_user}.conf" #TODO ext_email
+procmail_conf_path="${mailbox_path}/procmail-${ext_user}.conf"
 
 procmail_log_path="${mailbox_path}/procmail.log"
 fetchmail_log_path="${mailbox_path}/fetchmail.log"
@@ -187,7 +187,7 @@ if [ ! -d "${fetchmail_log_links_path}" ]; then
 fi
 
 # link to logfile
-fetchmail_log_links_path="${fetchmail_log_links_path}/${my_domain}-${target_username}.log"
+fetchmail_log_links_path="${fetchmail_log_links_path}/${my_domain}-${local_username}.log"
 if [ ! -e "${fetchmail_log_links_path}" ]; then
     ln -s "${fetchmail_log_path}" "${fetchmail_log_links_path}"
 fi
@@ -208,7 +208,7 @@ if [ ! -d "${procmail_log_links_path}" ]; then
 fi
 
 # link to logfile
-procmail_log_links_path="${procmail_log_links_path}/${my_domain}-${target_username}.log"
+procmail_log_links_path="${procmail_log_links_path}/${my_domain}-${local_username}.log"
 if [ ! -e "${procmail_log_links_path}" ]; then
     ln -s "${procmail_log_path}" "${procmail_log_links_path}"
 fi
