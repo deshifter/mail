@@ -95,9 +95,15 @@ fi
 # fetchmail config file
 fetchmail_conf_path="${mailbox_path}/fetchmail-${ext_username}.conf" #TODO ext_email
 
-if [ -e "${fetchmail_conf_path}" ] && [ ${force_overwrite} != true ]; then
+if [ ${force_overwrite} == yes ] || [ ${force_overwrite} == true ]; then
+    rm -f "${fetchmail_conf_path}"
+fi
+
+if [ -e "${fetchmail_conf_path}" ]; then
     echo "fetchmail.conf already exists, you --force to overwrite"
     normal_exit
+else
+    touch "${fetchmail_conf_path}"
 fi
 
 chown vmail:vmail "${fetchmail_conf_path}"
@@ -106,9 +112,15 @@ chmod 600 "${fetchmail_conf_path}"
 # procmail config file
 procmail_conf_path="${mailbox_path}/procmail-${ext_username}.conf"
 
-if [ -e "${procmail_conf_path}" ] && [ ${force_overwrite} != true ]; then
+if [ ${force_overwrite} == yes ] || [ ${force_overwrite} == true ]; then
+    rm -f "${procmail_conf_path}"
+fi
+
+if [ -e "${procmail_conf_path}" ]; then
     echo "procmail.conf already exists, you --force to overwrite"
     normal_exit
+else
+    touch "${procmail_conf_path}"
 fi
 
 chown vmail:vmail "${procmail_conf_path}"
