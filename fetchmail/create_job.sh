@@ -1,22 +1,23 @@
 #!/usr/bin/env bash
 
-set -e
+set -o errexit
 
-function unlock_and_exit() {
-    rm -f /tmp/mail/fetchmail_create_job.lock && exit
+lockfile="/tmp/fetchmail_create_job.lock"
+
+function normal_exit() {
+    rm -f ${lockfile}
+    exit
 }
 
 if [ "$EUID" -ne 0 ]; then
     echo "Please run as root"
-    unlock_and_exit
+    normal_exit
 fi
 
-if [ ! -d "/tmp/mail" ]; then
-    mkdir -p /tmp/mail
-elif [ ! -e "/tmp/mail/fetchmail_create_job.lock" ]; then
-    touch /tmp/mail/fetchmail_create_job.lock
+if [ ! -e "${lockfile}" ]; then
+    touch ${lockfile}
 else
-    echo "Process if locked"
+    echo "Process is locked"
     exit
 fi
 
@@ -24,8 +25,8 @@ fi
 maildir_path="/home/mail"
 
 if [ ! -d "${maildir_path}" ]; then
-    echo "Can\'t open ${maildir_path}: Directory nonexistent"
-    unlock_and_exit
+    echo "Can't open ${maildir_path}: Directory nonexistent"
+    normal_exit
 fi
 
 # log links path
@@ -54,22 +55,18 @@ while [ -n "$1" ]; do
     case "$1" in
     -F | --force)
         force_overwrite=true
-        echo "force_overwrite=true"
         shift
         ;;
     -f | --from)
         ext_user="$2"
-        echo "ext_user=\"$2\""
         shift
         ;;
     -p | --password)
         ext_password="$2"
-        echo "ext_password=\"$2\""
         shift
         ;;
     -t | --to)
         local_username="$2"
-        echo "local_username\"$2\""
         shift
         ;;
     *) ;;
@@ -78,15 +75,15 @@ while [ -n "$1" ]; do
 done
 
 if [ -z "${ext_user}" ] || [ -z "${ext_password}" ] || [ -z "${local_username}" ]; then
-    echo "Too few arguments. Use: ./install.sh -f USER -p PASSWORD -t USERNAME"
-    unlock_and_exit
+    echo "Too few arguments. Use: ./create_job.sh --from EXT_USERNAME --password EXT_PASSWORD --to LOCAL_USERNAME"
+    normal_exit
 fi
 
 mailbox_path="${maildir_path}/${my_domain}/${local_username}@${my_domain}"
 
 if [ ! -d "${mailbox_path}" ]; then
-    echo "cannot open ${mailbox_path}: Directory nonexistent"
-    unlock_and_exit
+    echo "Cannot open ${mailbox_path}: Directory nonexistent"
+    normal_exit
 fi
 
 if [ $ext_use_ssl = yes ] || [ $ext_use_ssl = true ]; then
@@ -123,7 +120,7 @@ if [ -e "${fetchmail_conf_path}" ]; then
         cat /dev/null >"${fetchmail_conf_path}"
     else
         echo "fetchmail.conf already exists, you --force to overwrite"
-        unlock_and_exit
+        normal_exit
     fi
 fi
 
@@ -155,7 +152,7 @@ if [ -e "${procmail_conf_path}" ]; then
         cat /dev/null >"${procmail_conf_path}"
     else
         echo "fetchmail.conf already exists, you --force to overwrite"
-        unlock_and_exit
+        normal_exit
     fi
 fi
 
@@ -177,6 +174,7 @@ chmod 600 "${procmail_conf_path}"
 
 if [ ! -e "${fetchmail_log_path}" ]; then
     touch "${fetchmail_log_path}"
+    chown vmail:vmail "${fetchmail_log_path}"
 fi
 
 # /var/log/fetchmail/<domain>-<username>.log
@@ -198,6 +196,7 @@ fi
 
 if [ ! -e "${procmail_log_path}" ]; then
     touch "${procmail_log_path}"
+    chown vmail:vmail "${procmail_log_path}"
 fi
 
 # link /var/log/fetchmail/<domain>-<username>.log
@@ -213,4 +212,4 @@ if [ ! -e "${procmail_log_links_path}" ]; then
     ln -s "${procmail_log_path}" "${procmail_log_links_path}"
 fi
 
-unlock_and_exit
+normal_exit
